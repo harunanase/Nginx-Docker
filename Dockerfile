@@ -7,6 +7,7 @@ ARG NGX_DEVEL_KIT_VER=v0.3.1
 ARG NGX_LUA_VER=v0.10.21
 ARG LUA_RESTY_CORE_VER=v0.1.23
 ARG LUA_RESTY_LRUCACHE_VER=v0.13
+ARG NGX_GEOIP2_VER=3.4
 
 # Nginx compile options
 ENV prefix=/opt/nginx
@@ -52,6 +53,10 @@ RUN mkdir -p /build/lua_resty_core && tar zxf ${LUA_RESTY_CORE_VER}.tar.gz -C /b
 RUN curl -L -O https://github.com/openresty/lua-resty-lrucache/archive/refs/tags/${LUA_RESTY_LRUCACHE_VER}.tar.gz
 RUN mkdir -p /build/lua_resty_lrucache && tar zxf ${LUA_RESTY_LRUCACHE_VER}.tar.gz -C /build/lua_resty_lrucache --strip-components 1
 
+# download geoip2 module
+RUN curl -L -O https://github.com/leev/ngx_http_geoip2_module/archive/refs/tags/${NGX_GEOIP2_VER}.tar.gz
+RUN mkdir -p /build/ngx_geoip2 && tar zxf ${NGX_GEOIP2_VER}.tar.gz -C /build/ngx_geoip2 --strip-components 1
+
 WORKDIR /build/nginx-${NGINX_FILE}
 RUN sed -i "49s/Server: nginx/Server: ${NGINX_NAME}/" ./src/http/ngx_http_header_filter_module.c
 RUN sed -i "50s/Server: \" NGINX_VER/Server: ${NGINX_NAME}\"/" ./src/http/ngx_http_header_filter_module.c
@@ -66,10 +71,11 @@ RUN ./configure --prefix=${prefix} --error-log-path=${errorLogPath} --http-log-p
             --with-http_sub_module --with-http_gunzip_module --with-http_gzip_static_module \
                 --with-http_stub_status_module --with-stream_ssl_module --with-stream_realip_module \
                     --user=${nginxUser} --group=${nginxGroup} \
-			--with-stream_geoip_module \
+			--with-stream_geoip_module --with-http_geoip_module \
 				--with-ld-opt="-Wl,-rpath,${LUAJIT_LIB}" \
 					--add-dynamic-module=/build/ngx_devel_kit \
-					--add-dynamic-module=/build/ngx_lua
+					--add-dynamic-module=/build/ngx_lua \
+					--add-dynamic-module=/build/ngx_geoip2
 RUN make -j$(nproc) && make install
 
 ADD ./GeoIP ${prefix}/GeoIP
@@ -79,6 +85,8 @@ RUN cd /build/lua_resty_lrucache && make -j$(nproc) && make install PREFIX=${pre
 RUN sed -i '20i \ \ \ \ lua_package_path "/opt/nginx/lib/lua/?.lua;;";' /opt/nginx/conf/nginx.conf
 RUN sed -i '11i load_module ./modules/ndk_http_module.so;' /opt/nginx/conf/nginx.conf
 RUN sed -i '12i load_module ./modules/ngx_http_lua_module.so;' /opt/nginx/conf/nginx.conf
+RUN sed -i '13i load_module ./modules/ngx_http_geoip2_module.so;' /opt/nginx/conf/nginx.conf
+RUN sed -i '14i load_module ./modules/ngx_stream_geoip2_module.so;' /opt/nginx/conf/nginx.conf
 
 WORKDIR /
 RUN rm -rf /build/

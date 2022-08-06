@@ -8,5 +8,6 @@ services:
       - ./conf/nginx.conf:/opt/nginx/conf/nginx.conf
       - ./conf/waf:/opt/nginx/conf/waf
       - ./conf/vhost:/opt/nginx/conf/vhost
+      - ./conf/vhost_layer4:/opt/nginx/conf/vhost_layer4
+      - ./GeoIP:/opt/nginx/conf/GeoIP
       - ./logs:/opt/nginx/logs
-
