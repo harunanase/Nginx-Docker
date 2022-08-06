@@ -6,3 +6,7 @@ services:
       - "80:80"
     volumes:
       - ./conf/nginx.conf:/opt/nginx/conf/nginx.conf
+      - ./conf/waf:/opt/nginx/conf/waf
+      - ./conf/vhost:/opt/nginx/conf/vhost
+      - ./logs:/opt/nginx/logs
+
