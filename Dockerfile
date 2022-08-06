@@ -82,6 +82,6 @@ RUN sed -i '12i load_module ./modules/ngx_http_lua_module.so;' /opt/nginx/conf/n
 
 WORKDIR /
 RUN rm -rf /build/
-RUN addgroup -S ${nginxGroup} && adduser -S -G ${nginxGroup} ${nginxUser}
+RUN addgroup -g 1000 -S ${nginxGroup} && adduser -u 1000 -S -G ${nginxGroup} ${nginxUser}
 
 CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]
