@@ -1,7 +1,7 @@
 version: "3"
 services:
   web:
-    image: "haru7se/nginx"
+    image: "haruna0918/nginx"
     ports:
       - "80:80"
     volumes:
@@ -9,5 +9,5 @@ services:
       - ./conf/waf:/opt/nginx/conf/waf
       - ./conf/vhost:/opt/nginx/conf/vhost
       - ./conf/vhost_layer4:/opt/nginx/conf/vhost_layer4
-      - ./GeoIP:/opt/nginx/conf/GeoIP
+      - ./GeoIP:/opt/nginx/GeoIP
       - ./logs:/opt/nginx/logs
