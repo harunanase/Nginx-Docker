@@ -75,7 +75,6 @@ FROM base
 RUN apk add --no-cache pcre-dev zlib-dev openssl-dev libmaxminddb-dev geoip-dev && rm -rf /var/cache/apk/*
 COPY --from=builder ${prefix} ${prefix}
 COPY --from=builder ${modsecurityPrefix} ${modsecurityPrefix}
-COPY --from=builder /build/ModSecurity/unicode.mapping ${prefix}/conf/modsec/
 RUN addgroup -g 1000 -S ${nginxGroup} && adduser -u 1000 -S -G ${nginxGroup} ${nginxUser}
 
 CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]

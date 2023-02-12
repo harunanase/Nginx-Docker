@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   web:
-    image: "haruna0918/nginx"
+    image: "haruna0918/nginx-modsecurity"
     ports:
       - "80:80"
     volumes:
