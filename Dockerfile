@@ -1,13 +1,10 @@
 # Env image
-FROM alpine:3.13 AS base
+FROM alpine AS base
 
 ARG NGINX_FILE=1.22.1
-ARG LUAJIT_VER=v2.1-20230119
-ARG NGX_DEVEL_KIT_VER=v0.3.2
-ARG NGX_LUA_VER=v0.10.22
-ARG LUA_RESTY_CORE_VER=v0.1.24
-ARG LUA_RESTY_LRUCACHE_VER=v0.13
 ARG NGX_GEOIP2_VER=3.4
+ARG MODSECURITY_VER=v3/master
+ARG MODSECURITY_NGINX_VER=v1.0.3
 
 # Nginx compile options
 ENV accessLogPath=/opt/nginx/logs/access.log
@@ -18,10 +15,10 @@ ENV prefix=/opt/nginx
 ENV nginxUser=www
 ENV nginxGroup=www
 
-# Lua compile option
-ENV luajit2Prefix=/opt/luajit2
-ENV LUAJIT_LIB=${luajit2Prefix}/lib
-ENV LUAJIT_INC=${luajit2Prefix}/include/luajit-2.1
+# ModSecurity option
+ENV modsecurityPrefix=/opt/modsecurity
+ENV MODSECURITY_INC="${modsecurityPrefix}/include/"
+ENV MODSECURITY_LIB="${modsecurityPrefix}/lib/"
 
 ENV NGINX_NAME=haru7se
 
@@ -30,32 +27,21 @@ FROM base AS builder
 WORKDIR /build
 
 # install requirements
-RUN apk add --no-cache curl g++ pcre-dev zlib-dev linux-headers openssl-dev libmaxminddb-dev geoip-dev make && rm -rf /var/cache/apk/*
-
-# download and compile luajit2
-RUN curl -L -O https://github.com/openresty/luajit2/archive/refs/tags/${LUAJIT_VER}.tar.gz
-RUN mkdir -p /build/luajit2 && tar zxf ${LUAJIT_VER}.tar.gz -C /build/luajit2 --strip-components 1
-RUN cd luajit2 && make -j$(nproc) && make install PREFIX=${luajit2Prefix}
-
-# download ngx_devel_kit
-RUN curl -L -O https://github.com/vision5/ngx_devel_kit/archive/refs/tags/${NGX_DEVEL_KIT_VER}.tar.gz
-RUN mkdir -p /build/ngx_devel_kit && tar zxf ${NGX_DEVEL_KIT_VER}.tar.gz -C /build/ngx_devel_kit --strip-components 1
-
-# download ngx_lua
-RUN curl -L -O https://github.com/openresty/lua-nginx-module/archive/refs/tags/${NGX_LUA_VER}.tar.gz
-RUN mkdir -p /build/ngx_lua && tar zxf ${NGX_LUA_VER}.tar.gz -C /build/ngx_lua --strip-components 1
-
-# download lua-resty-core
-RUN curl -L -O https://github.com/openresty/lua-resty-core/archive/refs/tags/${LUA_RESTY_CORE_VER}.tar.gz
-RUN mkdir -p /build/lua_resty_core && tar zxf ${LUA_RESTY_CORE_VER}.tar.gz -C /build/lua_resty_core --strip-components 1
-
-# download lua-resty-lrucache
-RUN curl -L -O https://github.com/openresty/lua-resty-lrucache/archive/refs/tags/${LUA_RESTY_LRUCACHE_VER}.tar.gz
-RUN mkdir -p /build/lua_resty_lrucache && tar zxf ${LUA_RESTY_LRUCACHE_VER}.tar.gz -C /build/lua_resty_lrucache --strip-components 1
+RUN apk add --no-cache curl git g++ pcre-dev zlib-dev linux-headers openssl-dev libmaxminddb-dev geoip-dev libtool make automake autoconf && rm -rf /var/cache/apk/*
 
 # download geoip2 module
 RUN curl -L -O https://github.com/leev/ngx_http_geoip2_module/archive/refs/tags/${NGX_GEOIP2_VER}.tar.gz
 RUN mkdir -p /build/ngx_geoip2 && tar zxf ${NGX_GEOIP2_VER}.tar.gz -C /build/ngx_geoip2 --strip-components 1
+
+# download and compile ModSecurity
+#RUN curl -L -O https://github.com/SpiderLabs/ModSecurity/archive/refs/tags/${MODSECURITY_VER}.tar.gz
+RUN mkdir -p /build/ && cd /build && git clone https://github.com/SpiderLabs/ModSecurity && \
+		cd ModSecurity && git checkout ${MODSECURITY_VER}
+RUN cd /build/ModSecurity && sh ./build.sh && git submodule init && git submodule update && ./configure --prefix ${modsecurityPrefix} && make -j$(nproc) && make install
+
+# download ModSecurity-nginx
+RUN curl -L -O https://github.com/SpiderLabs/ModSecurity-nginx/archive/refs/tags/v1.0.3.tar.gz
+RUN mkdir /build/modsecurity-nginx && tar zxf ${MODSECURITY_NGINX_VER}.tar.gz -C /build/modsecurity-nginx --strip-components 1
 
 RUN curl -L -O https://nginx.org/download/nginx-${NGINX_FILE}.tar.gz && \
     tar zxf nginx-${NGINX_FILE}.tar.gz && \
@@ -69,33 +55,27 @@ RUN sed -i "49s/Server: nginx/Server: ${NGINX_NAME}/" ./src/http/ngx_http_header
 		sed -i "36s/nginx/${NGINX_NAME}/" ./src/http/ngx_http_special_response.c
 
 RUN ./configure --prefix=${prefix} --error-log-path=${errorLogPath} --http-log-path=${accessLogPath} \
-    --pid-path=${pidPath} --lock-path=${lockPath} --with-file-aio --with-stream \
+		--pid-path=${pidPath} --lock-path=${lockPath} --with-file-aio --with-stream \
         --with-http_ssl_module --with-http_v2_module --with-http_realip_module \
-            --with-http_sub_module --with-http_gunzip_module --with-http_gzip_static_module \
-                --with-http_stub_status_module --with-stream_ssl_module --with-stream_realip_module \
-                    --user=${nginxUser} --group=${nginxGroup} \
-			--with-stream_geoip_module --with-http_geoip_module \
-				--with-ld-opt="-Wl,-rpath,${LUAJIT_LIB}" \
-					--add-dynamic-module=/build/ngx_devel_kit \
-					--add-dynamic-module=/build/ngx_lua \
-					--add-dynamic-module=/build/ngx_geoip2
+        --with-http_sub_module --with-http_gunzip_module --with-http_gzip_static_module \
+        --with-http_stub_status_module --with-stream_ssl_module --with-stream_realip_module \
+		--with-stream_geoip_module --with-http_geoip_module \
+		--with-ld-opt="-Wl,-rpath,${LUAJIT_LIB}" \
+            --user=${nginxUser} --group=${nginxGroup} \
+			--add-dynamic-module=/build/ngx_geoip2 \
+			--add-dynamic-module=/build/modsecurity-nginx --with-compat
 RUN make -j$(nproc) && make install
 
-RUN cd /build/lua_resty_core && make -j$(nproc) && make install PREFIX=${prefix} && \
-		cd /build/lua_resty_lrucache && make -j$(nproc) && make install PREFIX=${prefix} && \
-		rm -rf /build
-
-RUN sed -i "20i \ \ \ \ lua_package_path \"${prefix}/lib/lua/?.lua;;\";" ${prefix}/conf/nginx.conf && \
-		sed -i '11i load_module ./modules/ndk_http_module.so;' ${prefix}/conf/nginx.conf && \
-		sed -i '12i load_module ./modules/ngx_http_lua_module.so;' ${prefix}/conf/nginx.conf && \
-		sed -i '13i load_module ./modules/ngx_http_geoip2_module.so;' ${prefix}/conf/nginx.conf && \
-		sed -i '14i load_module ./modules/ngx_stream_geoip2_module.so;' ${prefix}/conf/nginx.conf
+RUN sed -i '11i load_module ./modules/ngx_http_geoip2_module.so;' ${prefix}/conf/nginx.conf && \
+		sed -i '12i load_module ./modules/ngx_stream_geoip2_module.so;' ${prefix}/conf/nginx.conf && \
+		sed -i '13i load_module ./modules/ngx_http_modsecurity_module.so;' ${prefix}/conf/nginx.conf
 
 # Final image
 FROM base
 RUN apk add --no-cache pcre-dev zlib-dev openssl-dev libmaxminddb-dev geoip-dev && rm -rf /var/cache/apk/*
 COPY --from=builder ${prefix} ${prefix}
-COPY --from=builder ${luajit2Prefix} ${luajit2Prefix}
+COPY --from=builder ${modsecurityPrefix} ${modsecurityPrefix}
+COPY --from=builder /build/ModSecurity/unicode.mapping ${prefix}/conf/modsec/
 RUN addgroup -g 1000 -S ${nginxGroup} && adduser -u 1000 -S -G ${nginxGroup} ${nginxUser}
 
 CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]

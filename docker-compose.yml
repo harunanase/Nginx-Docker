@@ -1,4 +1,4 @@
-version: "3"
+version: "3.9"
 services:
   web:
     image: "haruna0918/nginx"
@@ -6,8 +6,11 @@ services:
       - "80:80"
     volumes:
       - ./conf/nginx.conf:/opt/nginx/conf/nginx.conf
-      - ./conf/waf:/opt/nginx/conf/waf
       - ./conf/vhost:/opt/nginx/conf/vhost
       - ./conf/vhost_layer4:/opt/nginx/conf/vhost_layer4
       - ./GeoIP:/opt/nginx/GeoIP
+      - ./conf/modsec/modsecurity.conf:/opt/nginx/conf/modsec/modsecurity.conf
+      - ./conf/modsec/modsec_includes.conf:/opt/nginx/conf/modsec/modsec_includes.conf
+      - ./conf/modsec/unicode.mapping:/opt/nginx/conf/modsec/unicode.mapping
+      - ./conf/modsec/owasp-modsecurity-crs:/opt/nginx/conf/modsec/owasp-modsecurity-crs
       - ./logs:/opt/nginx/logs
